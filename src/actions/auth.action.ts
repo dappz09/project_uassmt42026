@@ -63,3 +63,7 @@ export async function registerAction(formData: FormData): Promise<{ success: boo
     return { success: false, message: 'Terjadi kesalahan. Silakan coba lagi.' };
   }
 }
+
+export async function loginWithGoogleAction() {
+  await signIn('google', { redirectTo: '/dashboard' });
+}
