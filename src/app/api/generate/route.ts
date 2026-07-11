@@ -5,8 +5,6 @@ import { auth } from '@/lib/auth'
 import { checkUserLimit } from '@/lib/limits'
 import { prisma } from '@/lib/prisma'
 
-const openai = createOpenAI()
-
 export async function POST(req: NextRequest) {
   const session = await auth()
   
@@ -28,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = streamText({
-    model: openai('gpt-4o-mini'),
+    model: createOpenAI()('gpt-4o-mini'),
     prompt,
   })
 
