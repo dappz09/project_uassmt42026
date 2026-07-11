@@ -1,0 +1,1 @@
+// Enum, daftar navigasi menu, atau pesan error standar

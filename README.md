@@ -34,3 +34,48 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+mendapatkan AUTH_SECRET = openssl rand -base64 32
+
+
+# 1. Stop dev server (Ctrl+C di terminal)
+
+# 2. Hapus cache Next.js (opsional tapi recommended)
+# Windows PowerShell:
+Remove-Item -Recurse -Force .next
+npx prisma generate
+
+# 3. Mulai Server
+npm run dev
+
+
+__Hapus cache Prisma (di terminal PowerShell):__
+
+```powershell
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force node_modules.prisma -ErrorAction SilentlyContinue
+echo "DONE"
+```
+
+__3. Regenerate Prisma Client:__
+
+```powershell
+npx prisma generate
+```
+
+__4. Start dev server:__
+
+```powershell
+npm run dev
+```
+
+__5. Test API check-user (di terminal BARU):__
+
+```powershell
+curl -X POST http://localhost:3000/api/check-user -H "Content-Type: application/json" -d "{\"email\":\"admin@notetube.ai\"}"
+```
+
+__6. Test Login:__
+
+- Buka `http://localhost:3000/login`

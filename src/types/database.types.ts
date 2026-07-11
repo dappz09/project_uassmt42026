@@ -1,0 +1,1 @@
+// Tipe data hasil generate otomatis dari Supabase

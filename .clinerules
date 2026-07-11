@@ -1,0 +1,13 @@
+# Token Optimization Rules
+1. NO YAPPING. Jangan pernah menjelaskan apa yang akan kamu lakukan. Langsung lakukan aksi (baca file atau edit).
+2. Saat diminta memperbaiki bug, JANGAN membaca seluruh file. Gunakan fungsi search (grep/find) untuk menemukan baris spesifik, lalu gunakan 'read_file' hanya pada rentang baris (line start - line end) yang relevan.
+3. Saat mengedit kode, gunakan perintah 'apply_diff' atau 'write_to_file' HANYA pada bagian yang berubah. Jangan mengirim ulang seluruh file jika tidak diminta.
+4. JANGAN pernah membaca folder node_modules, .git, dist, atau build.
+5. Jika terminal error, baca hanya 20 baris terakhir error tersebut, jangan baca seluruh log.
+6. Gunakan bahasa Indonesia atau Inggris sesuai permintaan, tapi tetap singkat.
+
+# Supabase Rules
+1. JANGAN PERNAH buat custom middleware di Next.js untuk cek autentikasi atau role. Gunakan Supabase RLS (Row Level Security) di database.
+2. Gunakan @supabase/ssr untuk handling auth di Next.js App Router.
+3. Tabel 'users' atau 'profiles' WAJIB memiliki foreign key ke 'auth.users' (id).
+4. Saat menulis SQL untuk RLS, JANGAN beri komentar penjelasan di setiap baris. Langsung tulis kodenya.
