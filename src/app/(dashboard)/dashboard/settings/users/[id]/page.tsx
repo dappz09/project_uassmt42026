@@ -146,7 +146,7 @@ export default function UserDetailPage() {
   }
 
   return (
-    <RequirePermission permission="read:users">
+    <RequirePermission action="read" resource="users">
       <div className="p-6 max-w-7xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-6">
           
@@ -171,7 +171,7 @@ export default function UserDetailPage() {
               </div>
             </div>
             
-            <RequirePermission permission="update:users">
+            <RequirePermission action="update" resource="users">
               <button 
                 onClick={handleSave}
                 disabled={saving}
@@ -255,7 +255,6 @@ export default function UserDetailPage() {
                     <CustomSelect 
                       value={formData.roleId || ''}
                       onChange={(val) => setFormData(prev => ({ ...prev, roleId: val }))}
-                      disabled={loadingRoles}
                       options={[
                         { value: '', label: 'User Biasa (Tanpa Role Khusus)' },
                         ...roles.map(r => ({ value: r.id, label: r.name }))

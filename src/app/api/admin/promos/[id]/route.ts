@@ -30,16 +30,17 @@ export async function PUT(req: Request, props: { params: Promise<{ id: string }>
       return NextResponse.json({ success: false, message: 'Kode Promo wajib diisi' }, { status: 400 })
     }
 
+    const { id } = await props.params
+
     // Pastikan kode unik (kecuali milik sendiri)
     const existing = await prisma.promoCode.findUnique({
       where: { code: code.toUpperCase() }
     })
     
-    if (existing && existing.id !== params.id) {
+    if (existing && existing.id !== id) {
       return NextResponse.json({ success: false, message: 'Kode Promo sudah digunakan' }, { status: 400 })
     }
 
-    const { id } = await props.params
     const item = await prisma.promoCode.update({
       where: { id },
       data: {

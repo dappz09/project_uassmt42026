@@ -16,7 +16,7 @@ export async function logActivity({ userId, action, resource, details, req }: Lo
 
     // Coba ambil dari request header (baik lewat object Request atau function headers() next/headers)
     try {
-      const headersList = headers()
+      const headersList = await headers()
       ipAddress = headersList.get('x-forwarded-for') || headersList.get('x-real-ip') || 'unknown'
       userAgent = headersList.get('user-agent') || 'unknown'
     } catch (e) {

@@ -15,13 +15,13 @@ const isAdmin = async () => {
   return user?.role?.name === 'SuperAdmin' || user?.role?.name === 'Manager'
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     if (!(await isAdmin())) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 403 })
     }
 
-    const id = params.id
+    const { id } = await params
     const body = await req.json()
     const { name, providerName, apiKey, publicApiKey, webhookUrl, isProduction, isActive, instructions, activeChannels } = body
 
@@ -74,13 +74,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     if (!(await isAdmin())) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 403 })
     }
 
-    const id = params.id
+    const { id } = await params
 
     const gateway = await prisma.paymentGateway.findUnique({ where: { id } })
 

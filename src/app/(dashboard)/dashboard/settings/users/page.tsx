@@ -79,17 +79,17 @@ export default function UsersSettingsPage() {
       className: 'w-24',
       render: (user) => (
         <div className="flex items-center gap-2">
-          <RequirePermission permission="read:users">
+          <RequirePermission action="read" resource="users">
             <Link href={`/dashboard/settings/users/${user.id}`} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Lihat Detail">
               <Eye size={16} />
             </Link>
           </RequirePermission>
-          <RequirePermission permission="update:users">
+          <RequirePermission action="update" resource="users">
             <button className="p-2 text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg transition-colors" title="Edit">
               <Edit size={16} />
             </button>
           </RequirePermission>
-          <RequirePermission permission="delete:users">
+          <RequirePermission action="delete" resource="users">
             <button className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Hapus">
               <Trash2 size={16} />
             </button>
@@ -297,7 +297,7 @@ export default function UsersSettingsPage() {
   )
 
   return (
-    <RequirePermission permission="read:users">
+    <RequirePermission action="read" resource="users">
       <div className="p-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full">
           

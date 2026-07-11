@@ -6,9 +6,9 @@ import { RequirePermission } from '@/components/auth/require-permission'
 import { toast } from 'sonner'
 
 interface ApiSettings {
-  API_STRIPE_SECRET_KEY: string
-  API_STRIPE_WEBHOOK_SECRET: string
-  API_RESEND_KEY: string
+  API_STRIPE_SECRET_KEY?: string
+  API_STRIPE_WEBHOOK_SECRET?: string
+  API_RESEND_KEY?: string
 }
 
 export default function ApiSettingsPage() {

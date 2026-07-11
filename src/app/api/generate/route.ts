@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     prompt,
   })
 
-  await prisma.usageRecord.create({ data: { userId } })
+  await prisma.usageRecord.create({ data: { userId, action: 'api_call' } })
 
   return result.toTextStreamResponse()
 }

@@ -70,7 +70,7 @@ export async function POST(req: Request) {
       compatibility = 'compatible'
     }
 
-    const customOpenAI = createOpenAI({ apiKey, baseURL, compatibility })
+    const customOpenAI = createOpenAI({ apiKey, baseURL })
 
     // OpenRouter/Groq hanya mendukung Chat Completions API, bukan Responses API
     const useChat = provider.toLowerCase() !== 'openai'
@@ -116,7 +116,6 @@ export async function POST(req: Request) {
     })
 
     return result.toUIMessageStreamResponse({
-      sendRoundtrips: false,
       onError: (error) => {
         console.error('[UIMessageStream error]', error)
         // Kembalikan pesan error yang informatif ke client

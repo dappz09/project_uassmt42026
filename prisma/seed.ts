@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, PlanType } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -183,7 +183,7 @@ async function main() {
   const plans = [
     {
       name: 'Free',
-      type: 'Free',
+      type: PlanType.Free,
       price: 0,
       interval: 'month',
       features: JSON.stringify(['Akses 1 Model Dasar', 'Limit 50 Request / Bulan', 'Dukungan Standar']),
@@ -193,7 +193,7 @@ async function main() {
     },
     {
       name: 'Plus',
-      type: 'Paid',
+      type: PlanType.Paid,
       price: 99000,
       interval: 'month',
       features: JSON.stringify(['Akses Model Pintar (GPT-4o Mini)', 'Limit 1.000 Request / Bulan', 'Dukungan Prioritas', 'Tanpa Iklan']),
@@ -203,7 +203,7 @@ async function main() {
     },
     {
       name: 'Pro',
-      type: 'Paid',
+      type: PlanType.Paid,
       price: 249000,
       interval: 'month',
       features: JSON.stringify(['Akses Semua Model Cepat (Termasuk Claude)', 'Request Tanpa Batas (Unlimited)', 'Akses Fitur Beta & API', 'Dukungan Eksklusif 24/7']),

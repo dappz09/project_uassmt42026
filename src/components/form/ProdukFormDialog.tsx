@@ -37,11 +37,9 @@ export function ProdukFormDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {/* Tombol Pemicu Modal */}
-      <DialogTrigger asChild>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-          + Tambah Produk
-        </Button>
-      </DialogTrigger>
+      <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setOpen(true)}>
+        + Tambah Produk
+      </Button>
 
       {/* Isi Modal */}
       <DialogContent className="sm:max-w-[425px]">
