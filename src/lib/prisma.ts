@@ -4,19 +4,21 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-export const prisma = new Proxy({} as PrismaClient, {
-  get(target, prop) {
-    if (prop === 'then') return undefined // handle async/await checks safely
-    
-    if (!globalForPrisma.prisma) {
-      globalForPrisma.prisma = new PrismaClient()
-    }
-    return Reflect.get(globalForPrisma.prisma, prop)
+const createPrismaClient = () => {
+  try {
+    return new PrismaClient()
+  } catch (error) {
+    // If Prisma fails to initialize (e.g., during Next.js static build),
+    // we return a Proxy that throws the error only when accessed at runtime.
+    return new Proxy({} as PrismaClient, {
+      get(target, prop) {
+        if (prop === 'then') return undefined
+        throw error
+      }
+    })
   }
-})
-
-if (process.env.NODE_ENV !== 'production') {
-  // In development, the proxy itself doesn't need to be reassigned, 
-  // because it writes to globalForPrisma.prisma on first use.
-  // But we can ensure it's not recreated if already exists
 }
+
+export const prisma = globalForPrisma.prisma ?? createPrismaClient()
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
