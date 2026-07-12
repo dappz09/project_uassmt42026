@@ -139,7 +139,7 @@ export function HistoryClient({ notes }: { notes: Note[] }) {
           loading={false}
           globalFilterFn={globalFilterFn}
           searchPlaceholder="Cari judul, cuplikan, atau link video..."
-          filename="Riwayat_Catatan_NoteTube"
+          exportFilename="Riwayat_Catatan_NoteTube"
         />
       </RequirePermission>
     </motion.div>
