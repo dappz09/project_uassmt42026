@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useTheme } from 'next-themes'
-import { Settings, Zap, Sun, Moon, Monitor, LogOut } from 'lucide-react'
+import { Settings, Zap, Sun, Moon, Monitor, LogOut, Menu } from 'lucide-react'
 import Link from 'next/link'
 
-export function DashboardHeader() {
+export function DashboardHeader({ onMenuClick }: { onMenuClick?: () => void }) {
   const { data: session } = useSession()
   const { theme, setTheme } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
@@ -28,7 +28,16 @@ export function DashboardHeader() {
   }, [])
 
   return (
-    <div className="h-16 flex items-center justify-end px-8 border-b border-zinc-200 dark:border-white/10 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 shrink-0">
+    <div className="h-16 flex items-center justify-between md:justify-end px-4 md:px-8 border-b border-zinc-200 dark:border-white/10 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md sticky top-0 z-40 shrink-0">
+      
+      {/* Mobile Menu Button */}
+      <button
+        onClick={onMenuClick}
+        className="md:hidden p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
+      >
+        <Menu size={24} />
+      </button>
+
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}

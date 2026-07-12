@@ -85,11 +85,24 @@ export async function POST(req: Request) {
       return new Response('Video tidak memiliki subtitle', { status: 400 })
     }
 
+    let videoTitle = `Rangkuman Video ${videoId}`
+    try {
+      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
+      if (oembedRes.ok) {
+        const oembedData = await oembedRes.json()
+        if (oembedData.title) {
+          videoTitle = oembedData.title
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch video title via oEmbed:', e)
+    }
+
     const transcriptText = transcript.map(item => item.text).join(' ')
 
     const result = streamText({
       model,
-      system: 'Kamu adalah asisten. Ubah transkrip YouTube ini menjadi catatan terstruktur dengan bullet point. Gunakan bahasa yang sama dengan transkrip.',
+      system: 'Kamu adalah asisten ahli pembuat rangkuman. Tugasmu adalah mengubah transkrip YouTube ini menjadi catatan terstruktur dengan bullet point. PENTING: Hasil catatan dan rangkuman HARUS selalu menggunakan Bahasa Indonesia yang baik dan mudah dipahami, tidak peduli apapun bahasa asli dari transkrip tersebut (misalnya Inggris, Jepang, dll).',
       prompt: transcriptText,
       onError: ({ error }) => {
         console.error('[streamText error]', error)
@@ -99,7 +112,7 @@ export async function POST(req: Request) {
           await prisma.note.create({
             data: {
               userId: session.user.id,
-              title: `Rangkuman Video ${videoId}`,
+              title: videoTitle,
               content: text,
               videoId: videoId,
               videoUrl: url,

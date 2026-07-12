@@ -86,14 +86,15 @@ function MenuItemComponent({ item, level = 0 }: { item: MenuItem; level?: number
 }
 
 import { UserPlanBadge } from './user-plan-badge'
+import { X } from 'lucide-react'
 
-export function Sidebar() {
+export function Sidebar({ isOpen = false, setIsOpen }: { isOpen?: boolean, setIsOpen?: (v: boolean) => void }) {
   const { data: session } = useSession()
 
   return (
-    <aside className="w-64 bg-zinc-50 dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/10 h-screen sticky top-0 flex flex-col transition-colors duration-300">
+    <aside className={`w-64 bg-zinc-50 dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/10 h-screen fixed md:sticky top-0 z-50 flex flex-col transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
       {/* Brand Header */}
-      <div className="h-16 flex items-center px-6 border-b border-zinc-200 dark:border-white/10 justify-between">
+      <div className="h-16 flex items-center px-4 md:px-6 border-b border-zinc-200 dark:border-white/10 justify-between shrink-0">
         <Link href="/dashboard" className="flex items-center gap-2 transition-opacity hover:opacity-80">
           <div className="bg-red-500 text-white p-1.5 rounded-lg flex items-center justify-center">
             <Play size={20} strokeWidth={2.5} fill="currentColor" />
@@ -102,7 +103,16 @@ export function Sidebar() {
             NoteTube
           </span>
         </Link>
-        <UserPlanBadge />
+        <div className="flex items-center gap-2">
+          <UserPlanBadge />
+          {/* Close button for mobile */}
+          <button 
+            onClick={() => setIsOpen?.(false)}
+            className="md:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
       </div>
       
       {/* Navigation */}

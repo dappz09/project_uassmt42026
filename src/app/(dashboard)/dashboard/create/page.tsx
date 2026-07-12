@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Play, Sparkles, Copy, Check } from 'lucide-react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 export default function CreateNotePage() {
   const [url, setUrl] = useState('')
@@ -16,9 +17,30 @@ export default function CreateNotePage() {
     []
   )
 
-  const { messages, status, sendMessage } = useChat({ transport })
+  const { messages, status, sendMessage, error } = useChat({ transport })
+  const router = useRouter()
 
   const isLoading = status === 'submitted' || status === 'streaming'
+
+  useEffect(() => {
+    if (error) {
+      const msg = error.message.toLowerCase()
+      if (msg.includes('limit') || msg.includes('403')) {
+        toast.error('Batas Kuota Tercapai!', {
+          description: 'Kuota ringkasan video Anda bulan ini sudah habis.',
+          action: {
+            label: 'Upgrade Pro',
+            onClick: () => router.push('/dashboard/pricing')
+          },
+          duration: 8000,
+        })
+      } else {
+        toast.error('Gagal meringkas video', {
+          description: error.message
+        })
+      }
+    }
+  }, [error, router])
 
   const getYoutubeVideoId = (link: string) => {
     if (!link) return null

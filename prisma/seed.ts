@@ -4,6 +4,7 @@ const prisma = new PrismaClient()
 
 const actions = ['view', 'show', 'create', 'update', 'delete', 'lookup']
 const resources = [
+  'dashboard',
   'users',
   'roles',
   'permissions',
@@ -18,21 +19,53 @@ const resources = [
 async function main() {
   console.log('Seeding granular permissions...')
 
-  // 1. Ensure SuperAdmin role exists
-  let superAdminRole = await prisma.role.findFirst({ where: { name: 'SuperAdmin' } })
-  if (!superAdminRole) {
-    superAdminRole = await prisma.role.create({
-      data: { name: 'SuperAdmin', description: 'Ultimate Access' }
-    })
-    console.log('Created SuperAdmin role.')
+  // 1. Ensure Roles Exist
+  const roles = [
+    { name: 'SuperAdmin', desc: 'Ultimate Access' },
+    { name: 'Manager', desc: 'Manager Access' },
+    { name: 'User', desc: 'Default User Access' }
+  ]
+
+  const roleRecords: any = {}
+  for (const r of roles) {
+    let record = await prisma.role.findFirst({ where: { name: r.name } })
+    if (!record) {
+      record = await prisma.role.create({ data: { name: r.name, description: r.desc } })
+      console.log(`Created ${r.name} role.`)
+    }
+    roleRecords[r.name] = record
   }
+
+  const superAdminRole = roleRecords['SuperAdmin']
+  const managerRole = roleRecords['Manager']
+  const userRole = roleRecords['User']
 
   let permsCreated = 0
   let linksCreated = 0
 
+  // Definisikan hak akses spesifik untuk Manager dan User
+  const managerAllowed = [
+    'view:dashboard',
+    'view:users', 'show:users', 'update:users',
+    'view:transactions', 'show:transactions', 'update:transactions',
+    'view:notes', 'show:notes', 'delete:notes',
+    'view:plans', 'show:plans',
+    'view:promocodes', 'show:promocodes', 'create:promocodes', 'update:promocodes',
+    'view:usagerecords', 'show:usagerecords'
+  ]
+  const userAllowed = [
+    'view:dashboard',
+    'view:notes', 'show:notes', 'create:notes', 'update:notes', 'delete:notes',
+    'view:usagerecords',
+    'view:transactions', 'show:transactions',
+    'view:plans', 'show:plans'
+  ]
+
   // 2. Generate and ensure permissions
   for (const resource of resources) {
     for (const action of actions) {
+      const permKey = `${action}:${resource}`
+      
       // Find or create permission
       let perm = await prisma.permission.findFirst({
         where: { action, resource }
@@ -45,48 +78,46 @@ async function main() {
         permsCreated++
       }
 
-      // Link to SuperAdmin
-      const linkExists = await prisma.rolePermission.findFirst({
+      // Link to SuperAdmin (All access)
+      let linkExists = await prisma.rolePermission.findFirst({
         where: { roleId: superAdminRole.id, permissionId: perm.id }
       })
-
       if (!linkExists) {
         await prisma.rolePermission.create({
           data: { roleId: superAdminRole.id, permissionId: perm.id }
         })
         linksCreated++
       }
+
+      // Link to Manager
+      if (managerAllowed.includes(permKey)) {
+        linkExists = await prisma.rolePermission.findFirst({
+          where: { roleId: managerRole.id, permissionId: perm.id }
+        })
+        if (!linkExists) {
+          await prisma.rolePermission.create({
+            data: { roleId: managerRole.id, permissionId: perm.id }
+          })
+          linksCreated++
+        }
+      }
+
+      // Link to User
+      if (userAllowed.includes(permKey)) {
+        linkExists = await prisma.rolePermission.findFirst({
+          where: { roleId: userRole.id, permissionId: perm.id }
+        })
+        if (!linkExists) {
+          await prisma.rolePermission.create({
+            data: { roleId: userRole.id, permissionId: perm.id }
+          })
+          linksCreated++
+        }
+      }
     }
   }
 
     // --- KODE BUATAN ANDA UNTUK SUPER ADMIN ---
-  const emailAdmin = "dappz0017@gmail.com" // Ganti dengan email Anda
-  
-  // Cari user berdasarkan email
-  const existingUser = await prisma.user.findUnique({
-    where: { email: emailAdmin }
-  })
-
-  if (existingUser) {
-    // Jika user sudah ada, naikkan jabatannya
-    await prisma.user.update({
-      where: { email: emailAdmin },
-      data: { roleId: superAdminRole.id }
-    })
-    console.log(`Berhasil menaikkan jabatan ${emailAdmin} menjadi SuperAdmin!`)
-  } else {
-    // Jika belum ada, buat akun baru
-    const bcrypt = require('bcryptjs')
-    await prisma.user.create({
-      data: {
-        name: "Super Admin",
-        email: emailAdmin,
-        password: await bcrypt.hash("uas_ai2026", 10), // Ganti password Anda
-        roleId: superAdminRole.id
-      }
-    })
-    console.log(`Berhasil membuat akun SuperAdmin baru: ${emailAdmin}`)
-  }
 
   //   // --- KODE BUATAN ANDA UNTUK SUPER ADMIN ---
   // const emailAdmin = "admin@email.com" // Ganti dengan email Anda

@@ -11,7 +11,7 @@ export const menuConfig: MenuItem[] = [
     title: 'Dashboard',
     href: '/dashboard',
     icon: 'LayoutDashboard',
-    permission: 'view:dashboard',
+    permission: 'view:users', // Only Admin & Manager have view:users
   },
   {
     title: 'Buat Catatan',
@@ -32,7 +32,6 @@ export const menuConfig: MenuItem[] = [
     title: 'Pengaturan',
     href: '/dashboard/settings',
     icon: 'Settings',
-    permission: 'view:settings',
     children: [
       { title: 'Profil & Akun', href: '/dashboard/settings/profile', icon: 'UserCircle' },
       { title: 'Manajemen Pengguna', href: '/dashboard/settings/users', icon: 'Users', permission: 'view:users' },
@@ -42,10 +41,10 @@ export const menuConfig: MenuItem[] = [
       { title: 'Model & Mesin AI', href: '/dashboard/settings/ai-models', icon: 'Sparkles', permission: 'view:settings' },
       { title: 'Konfigurasi API', href: '/dashboard/settings/api', icon: 'Key', permission: 'view:settings' },
       { title: 'Log Aktivitas', href: '/dashboard/settings/audit-logs', icon: 'Activity', permission: 'view:settings' },
-      { title: 'Paket & Fitur', href: '/dashboard/settings/plans', icon: 'Package', permission: 'view:plans' },
+      { title: 'Paket & Fitur', href: '/dashboard/settings/plans', icon: 'Package', permission: 'view:settings' },
       { title: 'Metode Pembayaran', href: '/dashboard/settings/payment-methods', icon: 'CreditCard', permission: 'view:settings' },
-      { title: 'Transaksi & Pendapatan', href: '/dashboard/settings/transactions', icon: 'Receipt', permission: 'view:transactions' },
-      { title: 'Kode Promo', href: '/dashboard/settings/promos', icon: 'Ticket', permission: 'view:promocodes' },
+      { title: 'Transaksi & Pendapatan', href: '/dashboard/settings/transactions', icon: 'Receipt', permission: 'view:settings' },
+      { title: 'Kode Promo', href: '/dashboard/settings/promos', icon: 'Ticket', permission: 'view:settings' },
     ]
   },
 ]

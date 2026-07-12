@@ -8,17 +8,18 @@ type RouteConfig = {
 }
 
 const protectedRoutes: RouteConfig[] = [
-  // SuperAdmin only - system settings
-  { path: '/dashboard/settings', roles: ['SuperAdmin'] },
-  { path: '/dashboard/roles', roles: ['SuperAdmin'] },
-  { path: '/dashboard/permissions', roles: ['SuperAdmin'] },
+  // Specific settings routes
+  { path: '/dashboard/settings/users', permissions: ['view:users'] },
+  { path: '/dashboard/settings/roles', permissions: ['view:roles'] },
+  { path: '/dashboard/settings/plans', permissions: ['view:settings'] },
+  { path: '/dashboard/settings/transactions', permissions: ['view:settings'] },
+  { path: '/dashboard/settings/promos', permissions: ['view:settings'] },
   
-  // Manager & SuperAdmin - user management
-  { path: '/dashboard/users', roles: ['SuperAdmin', 'Manager'] },
+  // Public settings for all logged-in users
+  { path: '/dashboard/settings/profile' }, 
   
-  // All authenticated users
-  { path: '/dashboard', roles: ['SuperAdmin', 'Manager', 'User'] },
-  { path: '/dashboard/product', roles: ['SuperAdmin', 'Manager', 'User'] },
+  // General settings (catches all other /dashboard/settings/* routes if not matched above)
+  { path: '/dashboard/settings', permissions: ['view:settings'] },
 ]
 
 export default auth((req) => {

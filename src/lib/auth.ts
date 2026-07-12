@@ -79,8 +79,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id as string
-        token.role = user.role as string
-        token.permissions = user.permissions as string[]
+        
+        // Jika login dengan credentials, user.role sudah ada
+        if ((user as any).role) {
+          token.role = (user as any).role as string
+          token.permissions = (user as any).permissions as string[]
+        } else {
+          // Jika login dengan Google (OAuth), user dari PrismaAdapter tidak menyertakan relasi role
+          try {
+            const dbUser = await prisma.user.findUnique({
+              where: { id: user.id as string },
+              include: { 
+                role: { 
+                  include: { 
+                    permissions: { 
+                      include: { 
+                        permission: true 
+                      } 
+                    } 
+                  } 
+                } 
+              }
+            })
+            token.role = dbUser?.role?.name || 'User'
+            token.permissions = dbUser?.role?.permissions?.map(
+              (p: any) => `${p.permission.action}:${p.permission.resource}`
+            ) || []
+          } catch (error) {
+            console.error('Error fetching user role in jwt callback:', error)
+            token.role = 'User'
+            token.permissions = []
+          }
+        }
       }
       return token
     },

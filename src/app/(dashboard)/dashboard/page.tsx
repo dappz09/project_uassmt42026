@@ -1,8 +1,10 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Users, FileText, Activity, Zap, ArrowUpRight, ArrowDownRight, MoreHorizontal } from 'lucide-react'
+import { Users, FileText, Activity, Zap, ArrowUpRight, ArrowDownRight, MoreHorizontal, Wand2, History, CreditCard } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 import {
   LineChart,
   Line,
@@ -19,6 +21,7 @@ import {
   Legend
 } from 'recharts'
 
+// Dashboard stats interface
 interface DashboardStats {
   totalUsers: number
   usersGrowth: number
@@ -40,7 +43,7 @@ interface DashboardStats {
 
 const COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b']
 
-export default function DashboardOverviewPage() {
+function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -72,8 +75,8 @@ export default function DashboardOverviewPage() {
         className="w-full"
       >
         <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">Dashboard</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Ringkasan aktivitas sistem dan penggunaan harian.</p>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">Dashboard Admin</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Ringkasan aktivitas sistem dan metrik platform NoteTube.</p>
         </div>
 
         {/* Stats Widgets */}
@@ -323,4 +326,28 @@ export default function DashboardOverviewPage() {
       </motion.div>
     </div>
   )
+}
+
+import { useRouter } from 'next/navigation'
+
+export default function DashboardOverviewPage() {
+  const { data: session } = useSession()
+  const router = useRouter()
+  const role = session?.user?.role || 'User'
+  
+  useEffect(() => {
+    if (role === 'User') {
+      router.push('/dashboard/create')
+    }
+  }, [role, router])
+
+  if (role === 'User') {
+    return (
+      <div className="p-6 flex justify-center items-center h-64 w-full">
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return <AdminDashboard />
 }

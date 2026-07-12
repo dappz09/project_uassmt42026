@@ -1,6 +1,6 @@
 'use client'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Save, ShieldAlert, Check } from 'lucide-react'
+import { ArrowLeft, Save, ShieldAlert, Check, List, Eye, Plus, Edit2, Trash2, Search, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { RequirePermission } from '@/components/auth/require-permission'
 import Link from 'next/link'
@@ -20,14 +20,12 @@ export default function RoleDetailPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch role info
         const roleRes = await fetch(`/api/admin/roles/${roleId}`)
         const roleJson = await roleRes.json().catch(() => null)
         if (roleRes.ok && roleJson?.success) {
           setRole(roleJson.data)
         }
 
-        // Fetch permissions info
         const permRes = await fetch(`/api/admin/roles/${roleId}/permissions`)
         const permJson = await permRes.json().catch(() => null)
         if (permRes.ok && permJson?.success) {
@@ -88,6 +86,46 @@ export default function RoleDetailPage() {
       toast.error('Terjadi kesalahan jaringan', { id: toastId })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const getActionConfig = (action: string) => {
+    switch (action.toLowerCase()) {
+      case 'view': return { label: 'Lihat Daftar', icon: <List size={16} className="text-blue-500" /> }
+      case 'show': return { label: 'Lihat Detail', icon: <Eye size={16} className="text-teal-500" /> }
+      case 'create': return { label: 'Tambah Baru', icon: <Plus size={16} className="text-green-500" /> }
+      case 'update': return { label: 'Ubah Data', icon: <Edit2 size={16} className="text-amber-500" /> }
+      case 'delete': return { label: 'Hapus Data', icon: <Trash2 size={16} className="text-red-500" /> }
+      case 'lookup': return { label: 'Pencarian', icon: <Search size={16} className="text-purple-500" /> }
+      default: return { label: action, icon: <Settings size={16} className="text-gray-500" /> }
+    }
+  }
+
+  const getResourceLabel = (res: string) => {
+    const map: Record<string, string> = {
+      dashboard: 'Dasbor (Dashboard)',
+      users: 'Manajemen Pengguna (Users)',
+      roles: 'Manajemen Peran (Roles)',
+      permissions: 'Hak Akses Sistem',
+      notes: 'Catatan Video AI (Notes)',
+      plans: 'Paket Langganan (Plans)',
+      transactions: 'Riwayat Pembayaran (Transactions)',
+      settings: 'Pengaturan Sistem (Settings)',
+      promocodes: 'Promo & Diskon (Promocodes)',
+      usagerecords: 'Penggunaan Limit (Usage Records)'
+    }
+    return map[res] || res
+  }
+
+  const getActionDesc = (action: string, res: string) => {
+    switch(action.toLowerCase()) {
+      case 'view': return `Bisa mengakses halaman daftar utama`
+      case 'show': return `Bisa melihat profil/detail spesifik`
+      case 'create': return `Bisa membuat data entri baru`
+      case 'update': return `Bisa memodifikasi data yang ada`
+      case 'delete': return `Bisa menghapus data secara permanen`
+      case 'lookup': return `Bisa menggunakan fitur filter/cari`
+      default: return `Aksi ${action} pada ${res}`
     }
   }
 
@@ -165,38 +203,44 @@ export default function RoleDetailPage() {
                   <div key={resource} className="border border-gray-100 dark:border-white/5 rounded-xl p-5 bg-gray-50/50 dark:bg-black/20">
                     <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-4 uppercase tracking-wider flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-purple-500" />
-                      Modul: {resource}
+                      {getResourceLabel(resource)}
                     </h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {perms.map((perm: any) => {
                         const isOn = activePermissions.has(perm.id)
+                        const config = getActionConfig(perm.action)
+                        const customDesc = getActionDesc(perm.action, resource)
                         
                         return (
-                          <div key={perm.id} className="flex items-center justify-between p-3 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-lg hover:border-purple-300 dark:hover:border-purple-500/50 transition-colors">
-                            <div>
-                              <div className="font-medium text-sm text-gray-900 dark:text-white capitalize">{perm.action}</div>
-                              {perm.description && (
-                                <div className="text-xs text-gray-500 mt-0.5 line-clamp-1" title={perm.description}>{perm.description}</div>
-                              )}
-                            </div>
-                            
-                            <button
-                              onClick={() => handleToggle(perm.id)}
-                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none ${
-                                isOn ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
-                              }`}
-                              role="switch"
-                              aria-checked={isOn}
-                            >
-                              <span className="sr-only">Toggle {perm.action} {perm.resource}</span>
-                              <span
-                                aria-hidden="true"
-                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-300 ease-in-out ${
-                                  isOn ? 'translate-x-5' : 'translate-x-0'
+                          <div key={perm.id} className="flex flex-col p-4 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-xl hover:border-purple-300 dark:hover:border-purple-500/50 transition-colors shadow-sm">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className="p-1.5 rounded-md bg-gray-100 dark:bg-black/30">
+                                  {config.icon}
+                                </div>
+                                <div className="font-semibold text-sm text-gray-900 dark:text-white">{config.label}</div>
+                              </div>
+                              <button
+                                onClick={() => handleToggle(perm.id)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none ${
+                                  isOn ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
                                 }`}
-                              />
-                            </button>
+                                role="switch"
+                                aria-checked={isOn}
+                              >
+                                <span className="sr-only">Toggle {perm.action} {perm.resource}</span>
+                                <span
+                                  aria-hidden="true"
+                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-300 ease-in-out ${
+                                    isOn ? 'translate-x-5' : 'translate-x-0'
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 pl-[38px]">
+                              {customDesc}
+                            </div>
                           </div>
                         )
                       })}

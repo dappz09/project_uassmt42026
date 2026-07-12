@@ -23,10 +23,10 @@ export async function checkUserLimit(userId: string): Promise<boolean> {
   if (limit === 0) return true // 0 berarti unlimited/tanpa batas
 
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
 
   const count = await prisma.usageRecord.count({
-    where: { userId, createdAt: { gte: today } },
+    where: { userId, createdAt: { gte: startOfMonth } },
   })
 
   return count < limit
