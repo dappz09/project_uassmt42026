@@ -103,7 +103,13 @@ export async function POST(req: Request) {
       // FALLBACK: Ekstraksi Audio Gemini 2.5
       // Cari API Key Google di database
       const googleModel = await prisma.aiModel.findFirst({
-        where: { provider: 'google', isActive: true }
+        where: { 
+          provider: {
+            contains: 'google',
+            mode: 'insensitive'
+          }, 
+          isActive: true 
+        }
       })
       if (!googleModel) {
         return new Response('Video tidak memiliki subtitle dan Admin belum mengonfigurasi API Google Gemini untuk pendengaran otomatis.', { status: 400 })
