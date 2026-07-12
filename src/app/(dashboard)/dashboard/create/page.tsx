@@ -137,29 +137,29 @@ export default function CreateNotePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="w-full bg-zinc-900 border border-white/10 rounded-3xl p-8 shadow-2xl flex-1"
+            className="w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-3xl p-8 shadow-2xl flex-1"
           >
-            <h2 className="text-xl font-bold mb-4">Catatan Video</h2>
-            <div className="prose prose-invert max-w-none relative">
+            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Catatan Video</h2>
+            <div className="prose dark:prose-invert max-w-none relative">
               {assistantMessages.map(m => {
                 const fullText = m.parts.filter(p => p.type === 'text').map((p: any) => p.text).join('')
                 return (
                   <div key={m.id} className="relative mt-4 group">
                     <button
                       onClick={() => handleCopy(fullText, m.id)}
-                      className="absolute top-2 right-2 p-2 rounded-md bg-zinc-700/50 hover:bg-zinc-700 text-zinc-300 transition-colors z-10"
+                      className="absolute top-2 right-2 p-2 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-zinc-700/50 dark:hover:bg-zinc-700 text-gray-600 dark:text-zinc-300 transition-colors z-10"
                       title="Salin Teks"
                     >
-                      {copiedId === m.id ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      {copiedId === m.id ? <Check className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
                     </button>
-                    <div className="whitespace-pre-wrap p-5 pt-8 bg-zinc-800 rounded-lg text-zinc-300 leading-relaxed min-h-[60px]">
+                    <div className="whitespace-pre-wrap p-5 pt-8 bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-transparent rounded-lg text-gray-800 dark:text-zinc-300 leading-relaxed min-h-[60px]">
                       {fullText}
                     </div>
                   </div>
                 )
               })}
               {isLoading && assistantMessages.length === 0 && (
-                <div className="mt-4 p-4 text-zinc-400 italic">
+                <div className="mt-4 p-4 text-gray-500 dark:text-zinc-400 italic">
                   Sedang menganalisis video...
                 </div>
               )}
