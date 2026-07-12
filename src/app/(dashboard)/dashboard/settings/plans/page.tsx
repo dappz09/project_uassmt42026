@@ -272,7 +272,7 @@ export default function PlansSettingsPage() {
                     <ul className="space-y-3 mb-6">
                       <li className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
                         <Zap size={16} className="text-indigo-500 flex-shrink-0 mt-0.5" />
-                        <span>Limit: <strong className="text-gray-900 dark:text-white">{plan.limitCount === 0 ? 'Unlimited' : `${plan.limitCount} request`}</strong> per {plan.interval}</span>
+                        <span>Limit: <strong className="text-gray-900 dark:text-white">{plan.limitCount === 0 ? 'Unlimited' : `${plan.limitCount} Token`}</strong> per {plan.interval}</span>
                       </li>
                       {featuresList.map((feat, idx) => (
                         <li key={idx} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">

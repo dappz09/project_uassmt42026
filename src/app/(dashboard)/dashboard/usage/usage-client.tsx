@@ -40,7 +40,7 @@ export function UsageClient({
                <BarChart3 size={20}/> Kuota Tersedia Bulan Ini
              </h3>
              <div className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-               {isUnlimited ? '∞' : available} <span className="text-lg font-normal text-gray-500 dark:text-gray-400">/ {isUnlimited ? '∞' : limit} Video</span>
+               {isUnlimited ? '∞' : available} <span className="text-lg font-normal text-gray-500 dark:text-gray-400">/ {isUnlimited ? '∞' : limit} Token</span>
              </div>
              
              {!isUnlimited && (

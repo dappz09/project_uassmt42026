@@ -2,8 +2,10 @@ import { streamText } from 'ai'
 import { openai, createOpenAI } from '@ai-sdk/openai'
 import { YoutubeTranscript } from 'youtube-transcript'
 import { auth } from '@/lib/auth'
-import { checkUserLimit } from '@/lib/limits'
+import { getRemainingLimit, consumeLimit } from '@/lib/limits'
 import { prisma } from '@/lib/prisma'
+import ytdl from '@distube/ytdl-core'
+import { processYouTubeAudio } from '@/lib/gemini-audio'
 
 export async function POST(req: Request) {
   try {
@@ -21,14 +23,33 @@ export async function POST(req: Request) {
       ''
     ).trim()
     
-    const hasLimit = await checkUserLimit(session.user.id)
-    if (!hasLimit) {
-      return new Response('Limit habis', { status: 403 })
-    }
-
     const videoId = extractYouTubeId(url)
     if (!videoId) {
       return new Response('URL YouTube tidak valid', { status: 400 })
+    }
+
+    // 1. Dapatkan metadata video (durasi)
+    const ytUrl = `https://www.youtube.com/watch?v=${videoId}`
+    const info = await ytdl.getInfo(ytUrl).catch(() => null)
+    if (!info) {
+      return new Response('Gagal mendapatkan metadata video YouTube. Pastikan video publik.', { status: 400 })
+    }
+
+    const durationSeconds = parseInt(info.videoDetails.lengthSeconds) || 0
+    const durationMinutes = durationSeconds / 60
+    const multiplier = Math.max(1, Math.ceil(durationMinutes / 60))
+
+    // 2. Cek ketersediaan Subtitle
+    const transcript = await YoutubeTranscript.fetchTranscript(videoId).catch(() => null)
+    const hasSubtitle = transcript && transcript.length > 0
+
+    // 3. Kalkulasi Biaya (Cost) Token
+    const cost = hasSubtitle ? (1 * multiplier) : (5 * multiplier)
+
+    // 4. Pengecekan Limit (Token)
+    const remainingLimit = await getRemainingLimit(session.user.id)
+    if (remainingLimit !== 'unlimited' && remainingLimit < cost) {
+      return new Response(`Proses ini membutuhkan ${cost} Token (Durasi: ${Math.ceil(durationMinutes)} menit, Subtitle: ${hasSubtitle ? 'Ada' : 'TIDAK Ada'}). Sisa Token Anda: ${remainingLimit}.`, { status: 403 })
     }
 
     // Ambil plan pengguna aktif untuk membaca AiModel yang dipakai
@@ -78,25 +99,44 @@ export async function POST(req: Request) {
       ? customOpenAI.chat(modelName)
       : customOpenAI(modelName)
 
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId)
-      .catch(() => null)
-
-    if (!transcript || transcript.length === 0) {
-      return new Response('Video tidak memiliki subtitle', { status: 400 })
-    }
-
-    let videoTitle = `Rangkuman Video ${videoId}`
-    try {
-      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
-      if (oembedRes.ok) {
-        const oembedData = await oembedRes.json()
-        if (oembedData.title) {
-          videoTitle = oembedData.title
-        }
+    if (!hasSubtitle) {
+      // FALLBACK: Ekstraksi Audio Gemini 2.5
+      // Cari API Key Google di database
+      const googleModel = await prisma.aiModel.findFirst({
+        where: { provider: 'google', isActive: true }
+      })
+      if (!googleModel) {
+        return new Response('Video tidak memiliki subtitle dan Admin belum mengonfigurasi API Google Gemini untuk pendengaran otomatis.', { status: 400 })
       }
-    } catch (e) {
-      console.error('Failed to fetch video title via oEmbed:', e)
+
+      const audioResult = await processYouTubeAudio(videoId, googleModel.apiKey, async (text) => {
+        try {
+          await prisma.note.create({
+            data: {
+              userId: session.user.id,
+              title: audioResult.title,
+              content: text,
+              videoId: videoId,
+              videoUrl: url,
+            }
+          })
+          // Potong limit
+          await consumeLimit(session.user.id, cost, 'summarize_audio')
+        } catch (e) {
+          console.error('Failed to save note:', e)
+        }
+      })
+      
+      return audioResult.stream.toUIMessageStreamResponse({
+        onError: (error) => {
+          console.error('[UIMessageStream error]', error)
+          return error instanceof Error ? error.message : String(error)
+        }
+      })
     }
+
+    // NORMAL PROCESS: Proses Teks Transcript (Seperti biasa)
+    let videoTitle = info.videoDetails.title || `Rangkuman Video ${videoId}`
 
     const transcriptText = transcript.map(item => item.text).join(' ')
 
@@ -118,20 +158,16 @@ export async function POST(req: Request) {
               videoUrl: url,
             }
           })
+          await consumeLimit(session.user.id, cost, 'summarize_text')
         } catch (e) {
           console.error('Failed to save note:', e)
         }
       }
     })
 
-    await prisma.usageRecord.create({
-      data: { userId: session.user.id, action: 'summarize' },
-    })
-
     return result.toUIMessageStreamResponse({
       onError: (error) => {
         console.error('[UIMessageStream error]', error)
-        // Kembalikan pesan error yang informatif ke client
         return error instanceof Error ? error.message : String(error)
       }
     })
