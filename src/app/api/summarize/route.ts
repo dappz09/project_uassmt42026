@@ -6,6 +6,7 @@ import { getRemainingLimit, consumeLimit } from '@/lib/limits'
 import { prisma } from '@/lib/prisma'
 import ytdl from '@distube/ytdl-core'
 import { processYouTubeAudio } from '@/lib/gemini-audio'
+import { Innertube, UniversalCache } from 'youtubei.js'
 
 export async function POST(req: Request) {
   try {
@@ -28,14 +29,17 @@ export async function POST(req: Request) {
       return new Response('URL YouTube tidak valid', { status: 400 })
     }
 
-    // 1. Dapatkan metadata video (durasi)
-    const ytUrl = `https://www.youtube.com/watch?v=${videoId}`
-    const info = await ytdl.getInfo(ytUrl).catch(() => null)
-    if (!info) {
+    // 1. Dapatkan metadata video (durasi) menggunakan youtubei.js (bypass IP block)
+    let durationSeconds = 0
+    let videoTitle = `Rangkuman Video ${videoId}`
+    try {
+      const yt = await Innertube.create({ cache: new UniversalCache(false) })
+      const info = await yt.getBasicInfo(videoId)
+      durationSeconds = info.basic_info.duration || 0
+      videoTitle = info.basic_info.title || videoTitle
+    } catch (error) {
       return new Response('Gagal mendapatkan metadata video YouTube. Pastikan video publik.', { status: 400 })
     }
-
-    const durationSeconds = parseInt(info.videoDetails.lengthSeconds) || 0
     const durationMinutes = durationSeconds / 60
     const multiplier = Math.max(1, Math.ceil(durationMinutes / 60))
 
@@ -142,7 +146,6 @@ export async function POST(req: Request) {
     }
 
     // NORMAL PROCESS: Proses Teks Transcript (Seperti biasa)
-    let videoTitle = info.videoDetails.title || `Rangkuman Video ${videoId}`
 
     const transcriptText = transcript.map(item => item.text).join(' ')
 
