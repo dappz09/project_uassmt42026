@@ -48,9 +48,14 @@ export async function POST(req: Request) {
       const encoder = new TextEncoder()
       const sseStream = new ReadableStream({
         start(controller) {
-          controller.enqueue(encoder.encode(`0:${JSON.stringify(cached.summaryText)}\n`))
-          controller.enqueue(encoder.encode(`d:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n`))
-          controller.enqueue(encoder.encode(`e:{"finishReason":"stop"}\n`))
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'start' })}\n\n`))
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'start-step' })}\n\n`))
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text-start', id: '0' })}\n\n`))
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text-delta', id: '0', delta: cached.summaryText })}\n\n`))
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text-end', id: '0' })}\n\n`))
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'finish-step' })}\n\n`))
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'finish', finishReason: 'stop' })}\n\n`))
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`))
           controller.close()
         }
       })
@@ -58,8 +63,11 @@ export async function POST(req: Request) {
       return new Response(sseStream, {
         status: 200,
         headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'X-Vercel-AI-Data-Stream': 'v1',
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'X-Vercel-AI-UI-Message-Stream': 'v1',
+          'X-Accel-Buffering': 'no'
         },
       })
     }
