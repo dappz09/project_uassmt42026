@@ -1,5 +1,6 @@
 import { Innertube, UniversalCache } from 'youtubei.js'
 import { getProxiedFetch, withProxiedFetch, hasProxy } from '@/lib/proxy'
+import { fetchTranscriptViaRapidAPI, hasRapidAPI } from '@/lib/transcript-api'
 
 export interface VideoMetadata {
   videoId: string
@@ -115,9 +116,24 @@ async function createInnertube(): Promise<Innertube> {
 }
 
 /**
- * Fetch transcript dengan proxy support dan fallback.
+ * Fetch transcript dengan multi-strategy:
+ * 1. RapidAPI (production — bypass IP block sepenuhnya)
+ * 2. youtube-transcript npm + proxy (fallback)
  */
 export async function fetchTranscript(videoId: string): Promise<Array<{ text: string }> | null> {
+  // Strategy 1: RapidAPI — request datang dari server RapidAPI, bukan IP kita
+  if (hasRapidAPI()) {
+    try {
+      const rapidResult = await fetchTranscriptViaRapidAPI(videoId)
+      if (rapidResult && rapidResult.length > 0) {
+        return rapidResult
+      }
+    } catch (e) {
+      console.error('RapidAPI transcript failed, falling back:', (e as Error).message)
+    }
+  }
+
+  // Strategy 2: youtube-transcript npm package dengan proxy
   const { YoutubeTranscript } = await import('youtube-transcript')
 
   return withProxiedFetch(() =>
