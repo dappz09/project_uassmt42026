@@ -1,14 +1,27 @@
 import ytdl from '@distube/ytdl-core'
 import { google } from '@ai-sdk/google'
 import { streamText } from 'ai'
+import { getProxyDispatcher } from '@/lib/proxy'
 
 export async function processYouTubeAudio(videoId: string, apiKey: string, onFinishCallback?: (text: string) => Promise<void>) {
   try {
     const url = `https://www.youtube.com/watch?v=${videoId}`
-    
+
+    const dispatcher = getProxyDispatcher()
+    const cookie = process.env.YOUTUBE_COOKIE
+
+    const requestOptions: any = {}
+    if (dispatcher) requestOptions.dispatcher = dispatcher
+    if (cookie) {
+      requestOptions.headers = {
+        cookie,
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      }
+    }
+
     // Download audio info
-    const info = await ytdl.getInfo(url)
-    
+    const info = await ytdl.getInfo(url, { requestOptions })
+
     // Find the best audio-only format
     const format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' })
     if (!format) {
@@ -16,7 +29,7 @@ export async function processYouTubeAudio(videoId: string, apiKey: string, onFin
     }
 
     // Download audio as stream and convert to base64
-    const audioStream = ytdl(url, { format })
+    const audioStream = ytdl(url, { format, requestOptions })
     const chunks: Buffer[] = []
     
     for await (const chunk of audioStream) {

@@ -1,12 +1,10 @@
 import { streamText } from 'ai'
-import { openai, createOpenAI } from '@ai-sdk/openai'
-import { YoutubeTranscript } from 'youtube-transcript'
+import { createOpenAI } from '@ai-sdk/openai'
 import { auth } from '@/lib/auth'
 import { getRemainingLimit, consumeLimit } from '@/lib/limits'
 import { prisma } from '@/lib/prisma'
-import ytdl from '@distube/ytdl-core'
 import { processYouTubeAudio } from '@/lib/gemini-audio'
-import { Innertube, UniversalCache } from 'youtubei.js'
+import { getVideoMetadata, fetchTranscript } from '@/lib/youtube-metadata'
 
 export async function POST(req: Request) {
   try {
@@ -23,28 +21,37 @@ export async function POST(req: Request) {
       lastMessage?.content ||
       ''
     ).trim()
-    
+
     const videoId = extractYouTubeId(url)
     if (!videoId) {
       return new Response('URL YouTube tidak valid', { status: 400 })
     }
 
-    // 1. Dapatkan metadata video (durasi) menggunakan youtubei.js (bypass IP block)
+    // 1. Dapatkan metadata video (multi-strategy: oEmbed → Innertube)
     let durationSeconds = 0
     let videoTitle = `Rangkuman Video ${videoId}`
     try {
-      const yt = await Innertube.create({ cache: new UniversalCache(false) })
-      const info = await yt.getBasicInfo(videoId)
-      durationSeconds = info.basic_info.duration || 0
-      videoTitle = info.basic_info.title || videoTitle
-    } catch (error) {
-      return new Response('Gagal mendapatkan metadata video YouTube. Pastikan video publik.', { status: 400 })
+      const metadata = await getVideoMetadata(videoId)
+      durationSeconds = metadata.durationSeconds
+      videoTitle = metadata.title || videoTitle
+    } catch (error: any) {
+      console.error('Metadata fetch error:', error)
+      return new Response(
+        error?.message ||
+        'Gagal mendapatkan metadata video YouTube. Pastikan video publik. ' +
+        'Jika masalah berkelanjutan di server hosting, kemungkinan IP diblokir YouTube (429/bot detection). ' +
+        'Konfigurasi YOUTUBE_PROXY_URL di environment variables.',
+        { status: 400 }
+      )
     }
     const durationMinutes = durationSeconds / 60
-    const multiplier = Math.max(1, Math.ceil(durationMinutes / 60))
+    // Jika durasi 0 (oEmbed berhasil tapi Innertube gagal), gunakan multiplier minimum
+    const multiplier = durationSeconds > 0
+      ? Math.max(1, Math.ceil(durationMinutes / 60))
+      : 1
 
-    // 2. Cek ketersediaan Subtitle
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId).catch(() => null)
+    // 2. Cek ketersediaan Subtitle (lewati proxy untuk bypass IP block)
+    const transcript = await fetchTranscript(videoId)
     const hasSubtitle = transcript && transcript.length > 0
 
     // 3. Kalkulasi Biaya (Cost) Token
@@ -53,7 +60,7 @@ export async function POST(req: Request) {
     // 4. Pengecekan Limit (Token)
     const remainingLimit = await getRemainingLimit(session.user.id)
     if (remainingLimit !== 'unlimited' && remainingLimit < cost) {
-      return new Response(`Proses ini membutuhkan ${cost} Token (Durasi: ${Math.ceil(durationMinutes)} menit, Subtitle: ${hasSubtitle ? 'Ada' : 'TIDAK Ada'}). Sisa Token Anda: ${remainingLimit}.`, { status: 403 })
+      return new Response(`Proses ini membutuhkan ${cost} Token (Durasi: ${durationSeconds > 0 ? Math.ceil(durationMinutes) : '?'} menit, Subtitle: ${hasSubtitle ? 'Ada' : 'TIDAK Ada'}). Sisa Token Anda: ${remainingLimit}.`, { status: 403 })
     }
 
     // Ambil plan pengguna aktif untuk membaca AiModel yang dipakai
@@ -107,12 +114,12 @@ export async function POST(req: Request) {
       // FALLBACK: Ekstraksi Audio Gemini 2.5
       // Cari API Key Google di database
       const googleModel = await prisma.aiModel.findFirst({
-        where: { 
+        where: {
           provider: {
             contains: 'google',
             mode: 'insensitive'
-          }, 
-          isActive: true 
+          },
+          isActive: true
         }
       })
       if (!googleModel) {
@@ -136,7 +143,7 @@ export async function POST(req: Request) {
           console.error('Failed to save note:', e)
         }
       })
-      
+
       return audioResult.stream.toUIMessageStreamResponse({
         onError: (error) => {
           console.error('[UIMessageStream error]', error)
@@ -147,7 +154,7 @@ export async function POST(req: Request) {
 
     // NORMAL PROCESS: Proses Teks Transcript (Seperti biasa)
 
-    const transcriptText = transcript.map(item => item.text).join(' ')
+    const transcriptText = transcript.map((item: { text: string }) => item.text).join(' ')
 
     const result = streamText({
       model,
