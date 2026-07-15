@@ -142,7 +142,7 @@ export default function CreateNotePage() {
             <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Catatan Video</h2>
             <div className="prose dark:prose-invert max-w-none relative">
               {assistantMessages.map(m => {
-                const fullText = m.parts.filter(p => p.type === 'text').map((p: any) => p.text).join('')
+                const fullText = m.content || (m.parts ? m.parts.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('') : '')
                 return (
                   <div key={m.id} className="relative mt-4 group">
                     <button
