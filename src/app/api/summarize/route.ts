@@ -28,7 +28,45 @@ export async function POST(req: Request) {
     }
 
     // ============================================================
-    // STEP 1: Dapatkan metadata video (oEmbed → Innertube + proxy)
+    // STEP 0: Cek cache — jika video sudah pernah dirangkum, langsung pakai
+    // Hemat RapidAPI call + AI token
+    // ============================================================
+    const cached = await prisma.videoSummary.findUnique({ where: { videoId } })
+    if (cached) {
+      // Simpan ke Note user (agar muncul di riwayat)
+      await prisma.note.create({
+        data: {
+          userId: session.user.id,
+          title: cached.title,
+          content: cached.summaryText,
+          videoId,
+          videoUrl: url,
+        }
+      }).catch(() => {}) // Ignore duplicate note error
+
+      // Return cached summary sebagai UI Message Stream (format SSE yang sama dengan streamText)
+      const encoder = new TextEncoder()
+      const sseStream = new ReadableStream({
+        start(controller) {
+          // Format: 0:"type"\n1:{json}\n  (AI SDK UIMessageStream protocol)
+          controller.enqueue(encoder.encode(`0:"text-delta"\n1:${JSON.stringify({ textDelta: cached.summaryText })}\n`))
+          controller.enqueue(encoder.encode(`0:"finish-step"\n1:${JSON.stringify({ finishReason: "stop", usage: { promptTokens: 0, completionTokens: 0 } })}\n`))
+          controller.enqueue(encoder.encode(`0:"finish-message"\n1:${JSON.stringify({ finishReason: "stop" })}\n`))
+          controller.close()
+        }
+      })
+
+      return new Response(sseStream, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Vercel-AI-Data-Stream': 'v1',
+        },
+      })
+    }
+
+    // ============================================================
+    // STEP 1: Dapatkan metadata video (RapidAPI → oEmbed)
     // ============================================================
     let durationSeconds = 0
     let videoTitle = `Rangkuman Video ${videoId}`
@@ -77,14 +115,25 @@ export async function POST(req: Request) {
 
     const hasSubtitle = transcript && transcript.length > 0
 
-    // Jika tidak ada subtitle DAN tidak ada RapidAPI — langsung tolak
-    // karena audio fallback (ytdl-core) juga akan kena bot detection
-    if (!hasSubtitle && !hasRapidAPI() && !process.env.YOUTUBE_PROXY_URL) {
-      return new Response(
-        'Video ini tidak memiliki subtitle, dan server tidak dapat mengunduh audio karena YouTube mendeteksi bot. ' +
-        'Solusi: Set RAPIDAPI_KEY (untuk transcript) atau YOUTUBE_PROXY_URL (untuk audio) di environment variables.',
-        { status: 400 }
-      )
+    // Jika tidak ada subtitle:
+    // - Dengan RapidAPI → video ini tidak punya subtitle di RapidAPI, tolak dengan pesan jelas
+    // - Tanpa RapidAPI → audio fallback (hanya jika proxy dikonfigurasi)
+    if (!hasSubtitle) {
+      if (hasRapidAPI()) {
+        return new Response(
+          'Video ini tidak memiliki subtitle/closed caption. ' +
+          'Saat ini hanya video dengan subtitle yang bisa dirangkum. ' +
+          'Coba video lain yang memiliki subtitle (CC).',
+          { status: 400 }
+        )
+      }
+      if (!process.env.YOUTUBE_PROXY_URL) {
+        return new Response(
+          'Video ini tidak memiliki subtitle, dan server tidak dapat mengunduh audio karena YouTube mendeteksi bot. ' +
+          'Solusi: Set RAPIDAPI_KEY atau YOUTUBE_PROXY_URL di environment variables.',
+          { status: 400 }
+        )
+      }
     }
 
     // ============================================================
@@ -219,6 +268,23 @@ export async function POST(req: Request) {
               videoUrl: url,
             }
           })
+          // Simpan ke cache VideoSummary (global, per videoId)
+          await prisma.videoSummary.upsert({
+            where: { videoId },
+            update: {
+              summaryText: text,
+              transcriptText,
+              title: videoTitle,
+              durationSeconds,
+            },
+            create: {
+              videoId,
+              title: videoTitle,
+              summaryText: text,
+              transcriptText,
+              durationSeconds,
+            }
+          }).catch(() => {}) // Ignore upsert error
           await consumeLimit(session.user.id, cost, 'summarize_text')
         } catch (e) {
           console.error('Failed to save note:', e)

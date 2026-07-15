@@ -1,6 +1,6 @@
 import { Innertube, UniversalCache } from 'youtubei.js'
 import { getProxiedFetch, withProxiedFetch, hasProxy } from '@/lib/proxy'
-import { fetchTranscriptViaRapidAPI, hasRapidAPI } from '@/lib/transcript-api'
+import { fetchTranscriptViaRapidAPI, fetchVideoInfoViaRapidAPI, hasRapidAPI } from '@/lib/transcript-api'
 
 export interface VideoMetadata {
   videoId: string
@@ -11,26 +11,69 @@ export interface VideoMetadata {
 }
 
 /**
- * Ambil metadata video YouTube dengan multiple fallback strategies.
- * Strategy 1: oEmbed (ringan, jarang diblokir, tapi tidak ada durasi)
- * Strategy 2: youtubei.js dengan proxy (jika dikonfigurasi)
- * Strategy 3: youtubei.js tanpa proxy (mungkin gagal di datacenter IP)
+ * STRATEGY:
+ * 
+ * Jika RAPIDAPI_KEY diset → HANYA gunakan RapidAPI + oEmbed.
+ *   TIDAK PERNAH akses YouTube langsung → tidak mungkin kena bot detection.
+ * 
+ * Jika RAPIDAPI_KEY kosong → gunakan semua metode (development only).
  */
 export async function getVideoMetadata(videoId: string): Promise<VideoMetadata> {
   const errors: string[] = []
 
-  // Strategy 1: oEmbed — dapat title & author, TIDAK ada durasi
+  // ── PRODUCTION PATH: RapidAPI first, oEmbed fallback ──
+  if (hasRapidAPI()) {
+    // Strategy 1: RapidAPI /get-video-info → 100% bypass YouTube
+    try {
+      const info = await fetchVideoInfoViaRapidAPI(videoId)
+      if (info && info.title) {
+        return {
+          videoId,
+          title: info.title,
+          durationSeconds: info.lengthSeconds || 0,
+          author: info.author,
+          thumbnail: info.thumbnail,
+        }
+      }
+    } catch (e) {
+      errors.push(`RapidAPI: ${(e as Error).message}`)
+    }
+
+    // Strategy 2: oEmbed → dapat title & author (tidak kena block)
+    try {
+      const oembedData = await fetchOEmbed(videoId)
+      if (oembedData) {
+        return {
+          videoId,
+          title: oembedData.title,
+          author: oembedData.author_name,
+          thumbnail: oembedData.thumbnail_url,
+          durationSeconds: 0, // oEmbed tidak punya durasi
+        }
+      }
+    } catch (e) {
+      errors.push(`oEmbed: ${(e as Error).message}`)
+    }
+
+    // JANGAN fallback ke Innertube — pasti kena bot detection dari IP Railway
+    throw new Error(
+      `Gagal mendapatkan metadata via RapidAPI & oEmbed. ` +
+      `Pastikan RAPIDAPI_KEY dan RAPIDAPI_HOST benar. ` +
+      `Detail: ${errors.join('; ')}`
+    )
+  }
+
+  // ── DEVELOPMENT PATH: tanpa RapidAPI ──
+  // oEmbed first (paling aman)
   try {
     const oembedData = await fetchOEmbed(videoId)
     if (oembedData) {
-      // Coba dapat durasi dari youtubei.js dengan proxy
       let durationSeconds = 0
       try {
         durationSeconds = await fetchDurationViaInnertube(videoId)
-      } catch (e) {
-        errors.push(`Innertube duration: ${(e as Error).message}`)
+      } catch {
+        // OK, durasi boleh 0 di development
       }
-
       return {
         videoId,
         title: oembedData.title,
@@ -43,7 +86,7 @@ export async function getVideoMetadata(videoId: string): Promise<VideoMetadata> 
     errors.push(`oEmbed: ${(e as Error).message}`)
   }
 
-  // Strategy 2 & 3: youtubei.js (dengan atau tanpa proxy)
+  // Innertube (mungkin kena block di datacenter IP)
   try {
     return await fetchMetadataViaInnertube(videoId)
   } catch (e) {
@@ -51,9 +94,7 @@ export async function getVideoMetadata(videoId: string): Promise<VideoMetadata> 
   }
 
   throw new Error(
-    `Gagal mendapatkan metadata video. ` +
-    `Kemungkinan IP server diblokir YouTube (429/bot detection). ` +
-    `Konfigurasi YOUTUBE_PROXY_URL di environment variables. ` +
+    `Gagal mendapatkan metadata. RAPIDAPI_KEY belum diset — wajib untuk production. ` +
     `Detail: ${errors.join('; ')}`
   )
 }
@@ -96,8 +137,7 @@ async function fetchMetadataViaInnertube(videoId: string): Promise<VideoMetadata
   const title = info.basic_info.title || `Video ${videoId}`
 
   if (!duration) {
-    // Jika duration 0, kemungkinan video unavailable / diblokir
-    throw new Error('Video unavailable atau metadata tidak lengkap (kemungkinan IP diblokir)')
+    throw new Error('Video unavailable atau metadata tidak lengkap')
   }
 
   return {
@@ -116,12 +156,12 @@ async function createInnertube(): Promise<Innertube> {
 }
 
 /**
- * Fetch transcript dengan multi-strategy:
- * 1. RapidAPI (production — bypass IP block sepenuhnya)
- * 2. youtube-transcript npm + proxy (fallback)
+ * Fetch transcript:
+ * Jika RAPIDAPI_KEY diset → HANYA RapidAPI (tidak akses YouTube)
+ * Jika tidak → youtube-transcript npm + proxy
  */
 export async function fetchTranscript(videoId: string): Promise<Array<{ text: string }> | null> {
-  // Strategy 1: RapidAPI — request datang dari server RapidAPI, bukan IP kita
+  // ── PRODUCTION PATH ──
   if (hasRapidAPI()) {
     try {
       const rapidResult = await fetchTranscriptViaRapidAPI(videoId)
@@ -129,13 +169,14 @@ export async function fetchTranscript(videoId: string): Promise<Array<{ text: st
         return rapidResult
       }
     } catch (e) {
-      console.error('RapidAPI transcript failed, falling back:', (e as Error).message)
+      console.error('RapidAPI transcript failed:', (e as Error).message)
     }
+    // JANGAN fallback ke youtube-transcript — akan kena bot detection
+    return null
   }
 
-  // Strategy 2: youtube-transcript npm package dengan proxy
+  // ── DEVELOPMENT PATH ──
   const { YoutubeTranscript } = await import('youtube-transcript')
-
   return withProxiedFetch(() =>
     YoutubeTranscript.fetchTranscript(videoId)
   ).catch(() => null)
