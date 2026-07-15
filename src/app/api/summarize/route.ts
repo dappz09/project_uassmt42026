@@ -48,10 +48,9 @@ export async function POST(req: Request) {
       const encoder = new TextEncoder()
       const sseStream = new ReadableStream({
         start(controller) {
-          // Format: 0:"type"\n1:{json}\n  (AI SDK UIMessageStream protocol)
-          controller.enqueue(encoder.encode(`0:"text-delta"\n1:${JSON.stringify({ textDelta: cached.summaryText })}\n`))
-          controller.enqueue(encoder.encode(`0:"finish-step"\n1:${JSON.stringify({ finishReason: "stop", usage: { promptTokens: 0, completionTokens: 0 } })}\n`))
-          controller.enqueue(encoder.encode(`0:"finish-message"\n1:${JSON.stringify({ finishReason: "stop" })}\n`))
+          controller.enqueue(encoder.encode(`0:${JSON.stringify(cached.summaryText)}\n`))
+          controller.enqueue(encoder.encode(`d:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n`))
+          controller.enqueue(encoder.encode(`e:{"finishReason":"stop"}\n`))
           controller.close()
         }
       })
