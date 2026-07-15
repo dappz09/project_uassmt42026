@@ -5,6 +5,7 @@ import { getRemainingLimit, consumeLimit } from '@/lib/limits'
 import { prisma } from '@/lib/prisma'
 import { processYouTubeAudio } from '@/lib/gemini-audio'
 import { getVideoMetadata, fetchTranscript } from '@/lib/youtube-metadata'
+import { hasRapidAPI } from '@/lib/transcript-api'
 
 export async function POST(req: Request) {
   try {
@@ -15,7 +16,6 @@ export async function POST(req: Request) {
 
     const { messages } = await req.json()
     const lastMessage = messages?.[messages.length - 1]
-    // SDK v7 mengirim parts[], SDK v3 mengirim content string
     const url = (
       lastMessage?.parts?.find((p: any) => p.type === 'text')?.text ||
       lastMessage?.content ||
@@ -27,7 +27,9 @@ export async function POST(req: Request) {
       return new Response('URL YouTube tidak valid', { status: 400 })
     }
 
-    // 1. Dapatkan metadata video (multi-strategy: oEmbed → Innertube)
+    // ============================================================
+    // STEP 1: Dapatkan metadata video (oEmbed → Innertube + proxy)
+    // ============================================================
     let durationSeconds = 0
     let videoTitle = `Rangkuman Video ${videoId}`
     try {
@@ -35,35 +37,72 @@ export async function POST(req: Request) {
       durationSeconds = metadata.durationSeconds
       videoTitle = metadata.title || videoTitle
     } catch (error: any) {
-      console.error('Metadata fetch error:', error)
+      const msg = error?.message || ''
+      if (isBotDetectionError(msg)) {
+        return new Response(
+          'YouTube mendeteksi server ini sebagai bot. ' +
+          'Solusi: Set RAPIDAPI_KEY di environment variables (daftar gratis di RapidAPI.com, cari "YouTube Transcript API"). ' +
+          'Detail: ' + msg,
+          { status: 400 }
+        )
+      }
       return new Response(
-        error?.message ||
-        'Gagal mendapatkan metadata video YouTube. Pastikan video publik. ' +
-        'Jika masalah berkelanjutan di server hosting, kemungkinan IP diblokir YouTube (429/bot detection). ' +
-        'Konfigurasi YOUTUBE_PROXY_URL di environment variables.',
+        msg || 'Gagal mendapatkan metadata video. Pastikan video publik.',
         { status: 400 }
       )
     }
     const durationMinutes = durationSeconds / 60
-    // Jika durasi 0 (oEmbed berhasil tapi Innertube gagal), gunakan multiplier minimum
     const multiplier = durationSeconds > 0
       ? Math.max(1, Math.ceil(durationMinutes / 60))
       : 1
 
-    // 2. Cek ketersediaan Subtitle (lewati proxy untuk bypass IP block)
-    const transcript = await fetchTranscript(videoId)
-    const hasSubtitle = transcript && transcript.length > 0
-
-    // 3. Kalkulasi Biaya (Cost) Token
-    const cost = hasSubtitle ? (1 * multiplier) : (5 * multiplier)
-
-    // 4. Pengecekan Limit (Token)
-    const remainingLimit = await getRemainingLimit(session.user.id)
-    if (remainingLimit !== 'unlimited' && remainingLimit < cost) {
-      return new Response(`Proses ini membutuhkan ${cost} Token (Durasi: ${durationSeconds > 0 ? Math.ceil(durationMinutes) : '?'} menit, Subtitle: ${hasSubtitle ? 'Ada' : 'TIDAK Ada'}). Sisa Token Anda: ${remainingLimit}.`, { status: 403 })
+    // ============================================================
+    // STEP 2: Dapatkan transcript (RapidAPI → youtube-transcript + proxy)
+    // ============================================================
+    let transcript: Array<{ text: string }> | null = null
+    try {
+      transcript = await fetchTranscript(videoId)
+    } catch (error: any) {
+      const msg = error?.message || ''
+      if (isBotDetectionError(msg)) {
+        return new Response(
+          'YouTube mendeteksi server ini sebagai bot saat mengambil transcript. ' +
+          'Solusi: Set RAPIDAPI_KEY di environment variables (daftar gratis di RapidAPI.com).',
+          { status: 400 }
+        )
+      }
+      // Log tapi jangan crash — transcript bisa null (video tanpa subtitle)
+      console.error('Transcript fetch error:', msg)
     }
 
-    // Ambil plan pengguna aktif untuk membaca AiModel yang dipakai
+    const hasSubtitle = transcript && transcript.length > 0
+
+    // Jika tidak ada subtitle DAN tidak ada RapidAPI — langsung tolak
+    // karena audio fallback (ytdl-core) juga akan kena bot detection
+    if (!hasSubtitle && !hasRapidAPI() && !process.env.YOUTUBE_PROXY_URL) {
+      return new Response(
+        'Video ini tidak memiliki subtitle, dan server tidak dapat mengunduh audio karena YouTube mendeteksi bot. ' +
+        'Solusi: Set RAPIDAPI_KEY (untuk transcript) atau YOUTUBE_PROXY_URL (untuk audio) di environment variables.',
+        { status: 400 }
+      )
+    }
+
+    // ============================================================
+    // STEP 3: Kalkulasi biaya & cek limit
+    // ============================================================
+    const cost = hasSubtitle ? (1 * multiplier) : (5 * multiplier)
+
+    const remainingLimit = await getRemainingLimit(session.user.id)
+    if (remainingLimit !== 'unlimited' && remainingLimit < cost) {
+      return new Response(
+        `Proses ini membutuhkan ${cost} Token (Durasi: ${durationSeconds > 0 ? Math.ceil(durationMinutes) : '?'} menit, Subtitle: ${hasSubtitle ? 'Ada' : 'TIDAK Ada'}). Sisa Token Anda: ${remainingLimit}.`,
+        { status: 403 }
+      )
+    }
+
+    // ============================================================
+    // STEP 4: Dapatkan AI Model dari plan user
+    // ============================================================
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       include: { subscription: true },
@@ -84,7 +123,6 @@ export async function POST(req: Request) {
 
     const { provider, apiKey, name: modelName } = activePlan.aiModel
 
-    // Konfigurasi baseURL berdasarkan provider (OpenRouter, Groq, dll.)
     let baseURL: string | undefined = undefined
     let compatibility: 'strict' | 'compatible' = 'strict'
 
@@ -98,63 +136,70 @@ export async function POST(req: Request) {
       baseURL = 'https://generativelanguage.googleapis.com/v1beta/openai/'
       compatibility = 'compatible'
     } else if (provider.toLowerCase() !== 'openai') {
-      // Fallback untuk provider lain yang mungkin kompatibel dengan OpenAI
       compatibility = 'compatible'
     }
 
     const customOpenAI = createOpenAI({ apiKey, baseURL })
-
-    // OpenRouter/Groq hanya mendukung Chat Completions API, bukan Responses API
     const useChat = provider.toLowerCase() !== 'openai'
     const model = useChat
       ? customOpenAI.chat(modelName)
       : customOpenAI(modelName)
 
+    // ============================================================
+    // STEP 5A: Audio fallback (tanpa subtitle) — butuh proxy
+    // ============================================================
     if (!hasSubtitle) {
-      // FALLBACK: Ekstraksi Audio Gemini 2.5
-      // Cari API Key Google di database
       const googleModel = await prisma.aiModel.findFirst({
         where: {
-          provider: {
-            contains: 'google',
-            mode: 'insensitive'
-          },
+          provider: { contains: 'google', mode: 'insensitive' },
           isActive: true
         }
       })
       if (!googleModel) {
-        return new Response('Video tidak memiliki subtitle dan Admin belum mengonfigurasi API Google Gemini untuk pendengaran otomatis.', { status: 400 })
+        return new Response('Video tidak memiliki subtitle dan Admin belum mengonfigurasi API Google Gemini.', { status: 400 })
       }
 
-      const audioResult = await processYouTubeAudio(videoId, googleModel.apiKey, async (text) => {
-        try {
-          await prisma.note.create({
-            data: {
-              userId: session.user.id,
-              title: audioResult.title,
-              content: text,
-              videoId: videoId,
-              videoUrl: url,
-            }
-          })
-          // Potong limit
-          await consumeLimit(session.user.id, cost, 'summarize_audio')
-        } catch (e) {
-          console.error('Failed to save note:', e)
-        }
-      })
+      try {
+        const audioResult = await processYouTubeAudio(videoId, googleModel.apiKey, async (text) => {
+          try {
+            await prisma.note.create({
+              data: {
+                userId: session.user.id,
+                title: audioResult.title,
+                content: text,
+                videoId,
+                videoUrl: url,
+              }
+            })
+            await consumeLimit(session.user.id, cost, 'summarize_audio')
+          } catch (e) {
+            console.error('Failed to save note:', e)
+          }
+        })
 
-      return audioResult.stream.toUIMessageStreamResponse({
-        onError: (error) => {
-          console.error('[UIMessageStream error]', error)
-          return error instanceof Error ? error.message : String(error)
+        return audioResult.stream.toUIMessageStreamResponse({
+          onError: (error) => {
+            console.error('[UIMessageStream error]', error)
+            return error instanceof Error ? error.message : String(error)
+          }
+        })
+      } catch (audioError: any) {
+        const msg = audioError?.message || ''
+        if (isBotDetectionError(msg)) {
+          return new Response(
+            'YouTube mendeteksi server ini sebagai bot saat mengunduh audio. ' +
+            'Solusi: Set YOUTUBE_PROXY_URL di environment variables untuk bypass.',
+            { status: 400 }
+          )
         }
-      })
+        return new Response(msg || 'Gagal memproses audio video', { status: 500 })
+      }
     }
 
-    // NORMAL PROCESS: Proses Teks Transcript (Seperti biasa)
-
-    const transcriptText = transcript.map((item: { text: string }) => item.text).join(' ')
+    // ============================================================
+    // STEP 5B: Text transcript (ada subtitle) — normal process
+    // ============================================================
+    const transcriptText = transcript!.map((item: { text: string }) => item.text).join(' ')
 
     const result = streamText({
       model,
@@ -170,7 +215,7 @@ export async function POST(req: Request) {
               userId: session.user.id,
               title: videoTitle,
               content: text,
-              videoId: videoId,
+              videoId,
               videoUrl: url,
             }
           })
@@ -189,12 +234,35 @@ export async function POST(req: Request) {
     })
   } catch (error: any) {
     console.error('Summarize error:', error)
-    return new Response(error?.message || 'Internal server error', { status: 500 })
+    const msg = error?.message || 'Internal server error'
+    if (isBotDetectionError(msg)) {
+      return new Response(
+        'YouTube mendeteksi server ini sebagai bot. Set RAPIDAPI_KEY di environment variables untuk bypass. Daftar gratis di RapidAPI.com.',
+        { status: 400 }
+      )
+    }
+    return new Response(msg, { status: 500 })
   }
 }
 
+function isBotDetectionError(msg: string): boolean {
+  const botSignals = [
+    'sign in to confirm',
+    'not a bot',
+    'bot detection',
+    'captcha',
+    '429',
+    'video unavailable',
+    'age-restricted',
+    'private video',
+    'members-only',
+  ]
+  const lower = msg.toLowerCase()
+  return botSignals.some(s => lower.includes(s))
+}
+
 function extractYouTubeId(url: string): string | null {
-  const cleanUrl = url.trim();
+  const cleanUrl = url.trim()
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?\s#]+)/,
   ]
