@@ -1,3 +1,15 @@
+## UAS_Kecerdasan Buatan
+Link URL : 
+- [notetube-ai.up.railway.app] (https://notetube-ai.up.railway.app/)
+- [notetube-ai-red.vercel.app] (https://notetube-ai-red.vercel.app)
+
+Anggota Tim :
+1. Lisa Rahmawati (24.01.55.0003)
+2. Nazwa Fitri Aulia (24.01.55.0004)
+3. Yumrotul Mukaromah (24.01.55.0006)
+4. Daffa Iqbal Maulana (24.01.55.0014)
+
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
